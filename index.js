@@ -1,5 +1,6 @@
 process.on('unhandledRejection', (e) => {
   console.log('程序执行异常:', e)
+  process.exitCode = 1
 })
 
 import pLimit from 'p-limit'
@@ -225,6 +226,7 @@ async function checkUpdate(timeout) {
 async function main() {
   const tokens = parseToken(TOKEN)
   const tasks = await runTaskQueue(tokens)
+  if (tasks.some((task) => task.status === 'error')) process.exitCode = 1
 
   const globalPushQueue = sendGlobalNotify(tasks)
   const userPushQueue = tasks.map((res) => res.pushQueue).flat()

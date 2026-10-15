@@ -1,4 +1,5 @@
 import request from './request.js'
+import { parsePageData, selectEnvelope } from './page-config.js'
 
 function extractAppJsUrl(text) {
   const regex = /https:\/\/[^"]*\/app[^"]*\.js/
@@ -8,6 +9,23 @@ function extractAppJsUrl(text) {
 }
 
 async function getTemplateData(cookie, gundamId, guard) {
+  if (gundamId === '2KAWnD') {
+    const response = await request(
+      `https://market.waimai.meituan.com/gd/single.html?el_biz=waimai&el_page=gundam.loader&gundam_id=${gundamId}`,
+      { cookie, timeout: 20000 }
+    )
+    if (!response.ok) throw new Error(`活动页面请求失败: ${response.status}`)
+    const { globalData, configUrl } = parsePageData(await response.text())
+    const config = await request.get(configUrl)
+    const renderList = await getRenderList(cookie, globalData, guard)
+    return {
+      gundamId,
+      gdId: globalData.gdId,
+      pageId: globalData.pageId,
+      actName: globalData.pageInfo.title,
+      envelope: selectEnvelope(config.renderTree, renderList)
+    }
+  }
   const text = await request(
     `https://market.waimai.meituan.com/api/template/get?env=current&el_biz=waimai&el_page=gundam.loader&gundam_id=${gundamId}`
   ).then((rep) => rep.text())
@@ -32,7 +50,7 @@ async function getTemplateData(cookie, gundamId, guard) {
 }
 
 function getLocalRenderList(renderInfo) {
-  if (renderInfo.status != 0 || !renderInfo?.componentRenderInfos) return []
+  if (renderInfo?.status != 0 || !renderInfo?.componentRenderInfos) return []
 
   return filterRenderableKeys(renderInfo.componentRenderInfos)
 }
