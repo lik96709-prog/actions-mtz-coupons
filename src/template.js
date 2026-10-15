@@ -50,14 +50,14 @@ async function getTemplateData(cookie, gundamId, guard) {
 }
 
 function getLocalRenderList(renderInfo) {
-  if (renderInfo?.status != 0 || !renderInfo?.componentRenderInfos) return []
+  if (renderInfo?.status != 0 || !renderInfo?.componentRenderInfos) return null
 
   return filterRenderableKeys(renderInfo.componentRenderInfos)
 }
 
 function filterRenderableKeys(renderInfo) {
   return Object.entries(renderInfo)
-    .filter(([_, v]) => v.render)
+    .filter(([, v]) => v?.render)
     .map(([k]) => k)
 }
 
@@ -72,7 +72,7 @@ async function getRenderList(
   if (renderInfo) {
     const renderList = getLocalRenderList(renderInfo)
 
-    if (renderList.length > 0) {
+    if (renderList !== null) {
       return renderList
     }
   }
@@ -94,11 +94,12 @@ async function getRenderList(
       }
     )
 
+    if (!res.data || typeof res.data !== 'object' || Array.isArray(res.data)) {
+      throw new Error(`renderinfo 未返回组件列表: code=${res.code ?? 'unknown'}, pageId=${pageId}, status=${renderInfo?.status ?? 'missing'}`)
+    }
     data = res.data
   } catch (e) {
-    console.log(e)
-
-    throw new Error('renderinfo 接口调用失败:' + e.message)
+    throw new Error('renderinfo 接口调用失败: ' + (e.message || e.code || 'unknown'))
   }
 
   return filterRenderableKeys(data)
