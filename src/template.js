@@ -1,4 +1,5 @@
 import request from './request.js'
+import { parsePageData, selectEnvelope } from './page-config.js'
 
 function extractAppJsUrl(text) {
   const regex = /https:\/\/[^"]*\/app[^"]*\.js/
@@ -8,6 +9,23 @@ function extractAppJsUrl(text) {
 }
 
 async function getTemplateData(cookie, gundamId, guard) {
+  if (gundamId === '2KAWnD') {
+    const response = await request(
+      `https://market.waimai.meituan.com/gd/single.html?el_biz=waimai&el_page=gundam.loader&gundam_id=${gundamId}`,
+      { cookie, timeout: 20000 }
+    )
+    if (!response.ok) throw new Error(`活动页面请求失败: ${response.status}`)
+    const { globalData, configUrl } = parsePageData(await response.text())
+    const config = await request.get(configUrl)
+    const renderList = await getRenderList(cookie, globalData, guard)
+    return {
+      gundamId,
+      gdId: globalData.gdId,
+      pageId: globalData.pageId,
+      actName: globalData.pageInfo.title,
+      envelope: selectEnvelope(config.renderTree, renderList)
+    }
+  }
   const text = await request(
     `https://market.waimai.meituan.com/api/template/get?env=current&el_biz=waimai&el_page=gundam.loader&gundam_id=${gundamId}`
   ).then((rep) => rep.text())
@@ -32,21 +50,21 @@ async function getTemplateData(cookie, gundamId, guard) {
 }
 
 function getLocalRenderList(renderInfo) {
-  if (renderInfo.status != 0 || !renderInfo?.componentRenderInfos) return []
+  if (renderInfo?.status != 0 || !renderInfo?.componentRenderInfos) return null
 
   return filterRenderableKeys(renderInfo.componentRenderInfos)
 }
 
 function filterRenderableKeys(renderInfo) {
   return Object.entries(renderInfo)
-    .filter(([_, v]) => v.render)
+    .filter(([, v]) => v?.render)
     .map(([k]) => k)
 }
 
 // 通过接口获取真实的渲染列表
 async function getRenderList(
   cookie,
-  { gundamViewId, gdId, pageId, renderInfo },
+  { gundamViewId, gdId, pageId, renderInfo, metadata, loc },
   guard
 ) {
   let data
@@ -54,7 +72,7 @@ async function getRenderList(
   if (renderInfo) {
     const renderList = getLocalRenderList(renderInfo)
 
-    if (renderList.length > 0) {
+    if (renderList !== null) {
       return renderList
     }
   }
@@ -69,18 +87,23 @@ async function getRenderList(
           gundam_id: gundamViewId,
           gdId: gdId,
           pageId: pageId,
-          tenant: 'gundam'
+          tenant: metadata?.tenant ?? 'gundam',
+          ...(renderInfo?.needLocation ? {
+            lat: loc?.lat || 0,
+            lng: loc?.lng || 0
+          } : {})
         },
         cookie,
         guard
       }
     )
 
+    if (!res.data || typeof res.data !== 'object' || Array.isArray(res.data)) {
+      throw new Error(`renderinfo 未返回组件列表: code=${res.code ?? 'unknown'}, pageId=${pageId}, status=${renderInfo?.status ?? 'missing'}`)
+    }
     data = res.data
   } catch (e) {
-    console.log(e)
-
-    throw new Error('renderinfo 接口调用失败:' + e.message)
+    throw new Error('renderinfo 接口调用失败: ' + (e.message || e.code || 'unknown'))
   }
 
   return filterRenderableKeys(data)
