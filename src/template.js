@@ -64,7 +64,7 @@ function filterRenderableKeys(renderInfo) {
 // 通过接口获取真实的渲染列表
 async function getRenderList(
   cookie,
-  { gundamViewId, gdId, pageId, renderInfo },
+  { gundamViewId, gdId, pageId, renderInfo, metadata, loc },
   guard
 ) {
   let data
@@ -87,7 +87,11 @@ async function getRenderList(
           gundam_id: gundamViewId,
           gdId: gdId,
           pageId: pageId,
-          tenant: 'gundam'
+          tenant: metadata?.tenant ?? 'gundam',
+          ...(renderInfo?.needLocation ? {
+            lat: loc?.lat || 0,
+            lng: loc?.lng || 0
+          } : {})
         },
         cookie,
         guard

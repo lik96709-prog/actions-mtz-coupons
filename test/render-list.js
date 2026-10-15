@@ -22,3 +22,11 @@ it('uses remote visibility when local visibility is unavailable', async () => {
   vi.spyOn(request, 'get').mockResolvedValue({ data: { shown: { render: true }, absent: null } })
   await expect(getRenderList(null, {})).resolves.toEqual(['shown'])
 })
+
+it('uses the page tenant and location fallback instead of a hardcoded tenant', async () => {
+  const get = vi.spyOn(request, 'get').mockResolvedValue({ data: { shown: { render: true } } })
+  await getRenderList(null, {
+    metadata: { tenant: '' }, renderInfo: { status: 1, needLocation: true }
+  })
+  expect(get.mock.calls[0][1].params).toMatchObject({ tenant: '', lat: 0, lng: 0 })
+})
