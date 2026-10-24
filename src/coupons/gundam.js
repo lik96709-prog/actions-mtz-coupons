@@ -2,6 +2,7 @@ import request from '../request.js'
 import { dateFormat, removePhoneRestriction } from '../util/index.js'
 import { getTemplateData, matchMoudleData } from '../template.js'
 import { ECODE } from './const.js'
+import { couponResults } from '../page-config.js'
 
 function resolveRedMod(text, renderList) {
   try {
@@ -25,9 +26,10 @@ function resolveRedMod(text, renderList) {
   return null
 }
 
-async function getPayload({ gundamId, gdId, appJs, renderList }, guard) {
-  const jsText = await request(appJs).then((res) => res.text())
-  const data = resolveRedMod(jsText, renderList)
+async function getPayload({ gundamId, gdId, pageId, envelope, appJs, renderList }, guard) {
+  const data = envelope || resolveRedMod(
+    await request(appJs).then((res) => res.text()), renderList
+  )
 
   if (!data) {
     throw new Error(`[${gundamId}] Gundam Payload 生成失败`)
@@ -44,6 +46,7 @@ async function getPayload({ gundamId, gdId, appJs, renderList }, guard) {
     // 这里取 number 类型的 gdId
     gundamId: gdId,
     instanceId: data.instanceID,
+    ...(envelope ? { pageId, algorithmSorting: data.algorithmSorting } : {}),
     h5Fingerprint: guard.h5fp,
     needTj: data.isStopTJCoupon
   }
@@ -97,7 +100,7 @@ async function grabCoupon(cookie, gundamId, guard) {
   )
 
   if (res.code == 0) {
-    return formatCoupons(res.data.coupons, tmplData.actName)
+    return formatCoupons(couponResults(res.data), tmplData.actName)
   }
 
   const apiInfo = {
